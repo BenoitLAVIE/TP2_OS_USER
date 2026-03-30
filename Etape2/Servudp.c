@@ -73,6 +73,14 @@ void diffuser_global(int sock, char *msg) {
         envoyer_beuip(sock, &dest, '9', msg);
     }
 }
+
+char* chercher_pseudo(struct in_addr addr) {
+    for (int i = 0; i < nb_peers; i++) {
+        if (table[i].addr.s_addr == addr.s_addr) return table[i].pseudo;
+    }
+    return "Inconnu"; // Si l'IP n'est pas dans la table
+}
+
 // Fonction de traitement 
 void traiter_paquet(int sock, char *buf, struct sockaddr_in *src, char *mon_pseudo) {
     if (memcmp(buf + 1, BEUIP_MAGIC, 5) != 0) return;
@@ -88,8 +96,11 @@ void traiter_paquet(int sock, char *buf, struct sockaddr_in *src, char *mon_pseu
         if (buf[0] == '3') lister_utilisateurs();
         else if (buf[0] == '4') relayer_message(sock, buf + 6);
         else if (buf[0] == '5') diffuser_global(sock, buf + 6);
+        char *ok = "OK";
+        sendto(sock, ok, strlen(ok), 0, (struct sockaddr *)src, sizeof(*src));
     } else if (buf[0] == '9') { // Message reçu d'un pair 
-        printf("Message de %s\n", buf + 6); 
+        char *expediteur = chercher_pseudo(src->sin_addr); // Trouve le nom via l'IP 
+        printf("Message de %s : %s\n", expediteur, buf + 6);
     }
 }
 
@@ -106,8 +117,8 @@ int main(int argc, char *argv[]) {
         char buf[BUF_SIZE];
         struct sockaddr_in src;
         socklen_t len = sizeof(src);
+        memset(buf, 0, BUF_SIZE);
         int n = recvfrom(sock, buf, BUF_SIZE, 0, (struct sockaddr *)&src, &len);
-        
         if (n > 0) {
             traiter_paquet(sock, buf, &src, argv[1]);
         }
